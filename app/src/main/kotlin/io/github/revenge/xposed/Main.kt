@@ -105,8 +105,8 @@ class Main : IXposedHookLoadPackage {
 
         //val cacheDir = File(param.appContext.getExternalFilesDir, "cache/pyoncord").apply { mkdirs() }
        // val filesDir = File(param.appContext.getExternalFilesDir, "files/pyoncord").apply { mkdirs() }
-        val cacheDir = File("storage/emulated/0/Discord/cache").apply { mkdirs() }
-        val filesDir = File("/storage/emulated/0/Discord/Files").apply { mkdirs() }
+        val cacheDir = File("storage/emulated/0/Android/data/com.discord/cache/pyoncord").apply { mkdirs() }
+        val filesDir = File("storage/emulated/0/Android/data/com.discord/files/pyoncord").apply { mkdirs() }
 
 
 
