@@ -96,7 +96,7 @@ class Main : IXposedHookLoadPackage {
         param: XC_LoadPackage.LoadPackageParam,
         onActivityCreate: ((activity: Activity) -> Unit) -> Unit
     ) = with(param) {
-        val context = ... 
+        val context = param.appContext
         val useExternalStorage = true
 
         val baseDir = if (useExternalStorage) {
