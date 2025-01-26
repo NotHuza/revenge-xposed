@@ -103,8 +103,8 @@ class Main : IXposedHookLoadPackage {
             String::class.java
         ).apply { isAccessible = true }
 
-        val cacheDir = File(param.appContext.getExternalFilesDir(null), "cache/pyoncord").apply { mkdirs() }
-        val filesDir = File(param.appContext.getExternalFilesDir(null), "files/pyoncord").apply { mkdirs() }
+        val cacheDir = File(param.appContext.getExternalFilesDir, "cache/pyoncord").apply { mkdirs() }
+        val filesDir = File(param.appContext.getExternalFilesDir, "files/pyoncord").apply { mkdirs() }
 
         val preloadsDir = File(filesDir, "preloads").apply { mkdirs() }
         val bundle = File(cacheDir, "bundle.js")
