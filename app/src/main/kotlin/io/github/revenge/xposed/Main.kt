@@ -186,6 +186,10 @@ class Main : IXposedHookLoadPackage {
             override fun beforeHookedMethod(param: MethodHookParam) {
                 runBlocking { httpJob.join() }
 
+                
+                val setGlobalVariable = XposedBridge::class.java.getMethod(
+                    "setGlobalVariable", String::class.java, Any::class.java
+                )
                 XposedBridge.invokeOriginalMethod(
                     setGlobalVariable, 
                     param.thisObject, 
@@ -196,18 +200,10 @@ class Main : IXposedHookLoadPackage {
                     .walk()
                     .filter { it.isFile && it.extension == "js" }
                     .forEach { file ->
-                        XposedBridge.invokeOriginalMethod(
-                            loadScriptFromFile, 
-                            param.thisObject, 
-                            arrayOf(file.absolutePath, file.absolutePath, param.args[2])
-                        )
+                        loadScriptFromFile(file.absolutePath)  // Assuming you have the loadScriptFromFile method
                     }
 
-                XposedBridge.invokeOriginalMethod(
-                    loadScriptFromFile, 
-                    param.thisObject, 
-                    arrayOf(bundle.absolutePath, bundle.absolutePath, param.args[2])
-                )
+                loadScriptFromFile(bundle.absolutePath)
             }
         }
 
