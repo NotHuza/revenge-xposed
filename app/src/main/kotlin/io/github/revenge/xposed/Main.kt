@@ -1,9 +1,5 @@
-package io.github.revenge.xposed
-
 import android.app.Activity
 import android.content.Context
-import android.content.res.AssetManager
-import android.content.res.Resources
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -23,7 +19,6 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
 import java.io.File
-import java.lang.reflect.Method
 
 @Serializable
 data class CustomLoadUrl(
@@ -37,7 +32,6 @@ data class LoaderConfig(
 )
 
 class Main : IXposedHookLoadPackage {
-
     private val modules: Array<Module> = arrayOf(
         ThemeModule(),
         SysColorsModule(),
@@ -60,21 +54,18 @@ class Main : IXposedHookLoadPackage {
     override fun handleLoadPackage(param: XC_LoadPackage.LoadPackageParam) = with(param) {
         val reactActivity = runCatching {
             classLoader.loadClass("com.discord.react_activities.ReactActivity")
-        }.getOrElse { return@with }
+        }.getOrElse { return@with } // Package is not our the target app, return
 
         var activity: Activity? = null
         val onActivityCreateCallback = mutableSetOf<(activity: Activity) -> Unit>()
 
-        XposedBridge.hookMethod(
-            reactActivity.getDeclaredMethod("onCreate", Bundle::class.java),
-            object : XC_MethodHook() {
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    activity = param.thisObject as Activity
-                    onActivityCreateCallback.forEach { cb -> cb(activity!!) }
-                    onActivityCreateCallback.clear()
-                }
+        XposedBridge.hookMethod(reactActivity.getDeclaredMethod("onCreate", Bundle::class.java), object : XC_MethodHook() {
+            override fun beforeHookedMethod(param: MethodHookParam) {
+                activity = param.thisObject as Activity
+                onActivityCreateCallback.forEach { cb -> cb(activity!!) }
+                onActivityCreateCallback.clear()
             }
-        )
+        })
 
         init(param) { cb ->
             if (activity != null) cb(activity!!)
@@ -82,41 +73,43 @@ class Main : IXposedHookLoadPackage {
         }
     }
 
-    private fun getExternalDir(context: Context, subPath: String): File {
-        return File(context.getExternalFilesDir(null), subPath).apply { mkdirs() }
-    }
-
-    private fun getInternalDir(context: Context, subPath: String): File {
-        return File(context.filesDir, subPath).apply { mkdirs() }
-    }
-
-    private fun getCacheDir(context: Context, subPath: String): File {
-        return File(context.cacheDir, subPath).apply { mkdirs() }
-    }
-
     private fun init(
         param: XC_LoadPackage.LoadPackageParam,
         onActivityCreate: ((activity: Activity) -> Unit) -> Unit
     ) = with(param) {
-        val context = param.appContext
-        val useExternalStorage = true
+        val catalystInstanceImpl = classLoader.loadClass("com.facebook.react.bridge.CatalystInstanceImpl")
 
-        val baseDir = if (useExternalStorage) {
-            getExternalDir(context, "pyoncord")
-        } else {
-            getInternalDir(context, "pyoncord")
-        }
+        for (module in modules) module.onInit(param)
 
-        val cacheDir = if (useExternalStorage) {
-            getExternalDir(context, "cache/pyoncord")
-        } else {
-            getCacheDir(context, "pyoncord")
-        }
+        val loadScriptFromAssets = catalystInstanceImpl.getDeclaredMethod(
+            "loadScriptFromAssets",
+            AssetManager::class.java,
+            String::class.java,
+            Boolean::class.javaPrimitiveType
+        ).apply { isAccessible = true }
 
-        val preloadsDir = File(baseDir, "preloads").apply { mkdirs() }
+        val loadScriptFromFile = catalystInstanceImpl.getDeclaredMethod(
+            "loadScriptFromFile",
+            String::class.java,
+            String::class.java,
+            Boolean::class.javaPrimitiveType
+        ).apply { isAccessible = true }
+
+        val setGlobalVariable = catalystInstanceImpl.getDeclaredMethod(
+            "setGlobalVariable",
+            String::class.java,
+            String::class.java
+        ).apply { isAccessible = true }
+
+        // Change here: Use app-specific external storage or internal storage directory
+        val cacheDir = File(activity.getExternalFilesDir(null), "cache/pyoncord").apply { mkdirs() }
+        val filesDir = File(activity.getExternalFilesDir(null), "files/pyoncord").apply { mkdirs() }
+
+        val preloadsDir = File(filesDir, "preloads").apply { mkdirs() }
         val bundle = File(cacheDir, "bundle.js")
         val etag = File(cacheDir, "etag.txt")
-        val configFile = File(baseDir, "loader.json")
+
+        val configFile = File(filesDir, "loader.json")
 
         val config = try {
             if (!configFile.exists()) throw Exception()
@@ -125,7 +118,7 @@ class Main : IXposedHookLoadPackage {
             LoaderConfig(
                 customLoadUrl = CustomLoadUrl(
                     enabled = false,
-                    url = ""
+                    url = "" // Not used
                 )
             )
         }
@@ -141,14 +134,14 @@ class Main : IXposedHookLoadPackage {
                     install(UserAgent) { agent = "RevengeXposed" }
                 }
 
-                val url = 
-                    if (config.customLoadUrl.enabled) config.customLoadUrl.url 
+                val url =
+                    if (config.customLoadUrl.enabled) config.customLoadUrl.url
                     else "https://github.com/revenge-mod/revenge-bundle/releases/latest/download/revenge.min.js"
 
                 Log.e("Revenge", "Fetching JS bundle from $url")
-                
+
                 val response: HttpResponse = client.get(url) {
-                    headers { 
+                    headers {
                         if (etag.exists() && bundle.exists()) {
                             append(HttpHeaders.IfNoneMatch, etag.readText())
                         }
@@ -158,14 +151,14 @@ class Main : IXposedHookLoadPackage {
                 bundle.writeBytes(response.body())
                 if (response.headers["Etag"] != null) {
                     etag.writeText(response.headers["Etag"]!!)
-                }
-                else if (etag.exists()) {
+                } else if (etag.exists()) {
+                    // This is called when server does not return an E-tag, so clear it
                     etag.delete()
                 }
 
                 return@async
             } catch (e: RedirectResponseException) {
-                if (e.response.status != HttpStatusCode.NotModified) throw e;
+                if (e.response.status != HttpStatusCode.NotModified) throw e
                 Log.e("Revenge", "Server responded with status code 304 - no changes to file")
             } catch (e: Throwable) {
                 onActivityCreate { activity ->
@@ -186,13 +179,9 @@ class Main : IXposedHookLoadPackage {
             override fun beforeHookedMethod(param: MethodHookParam) {
                 runBlocking { httpJob.join() }
 
-                
-                val setGlobalVariable = XposedBridge::class.java.getMethod(
-                    "setGlobalVariable", String::class.java, Any::class.java
-                )
                 XposedBridge.invokeOriginalMethod(
-                    setGlobalVariable, 
-                    param.thisObject, 
+                    setGlobalVariable,
+                    param.thisObject,
                     arrayOf("__PYON_LOADER__", buildLoaderJsonString())
                 )
 
@@ -200,25 +189,34 @@ class Main : IXposedHookLoadPackage {
                     .walk()
                     .filter { it.isFile && it.extension == "js" }
                     .forEach { file ->
-                        loadScriptFromFile(file.absolutePath)  // Assuming you have the loadScriptFromFile method
+                        XposedBridge.invokeOriginalMethod(
+                            loadScriptFromFile,
+                            param.thisObject,
+                            arrayOf(file.absolutePath, file.absolutePath, param.args[2])
+                        )
                     }
 
-                loadScriptFromFile(bundle.absolutePath)
+                XposedBridge.invokeOriginalMethod(
+                    loadScriptFromFile,
+                    param.thisObject,
+                    arrayOf(bundle.absolutePath, bundle.absolutePath, param.args[2])
+                )
             }
         }
 
         XposedBridge.hookMethod(loadScriptFromAssets, patch)
         XposedBridge.hookMethod(loadScriptFromFile, patch)
 
+        // Fighting the side effects of changing the package name
         if (packageName != "com.discord") {
             val getIdentifier = Resources::class.java.getDeclaredMethod(
-                "getIdentifier", 
+                "getIdentifier",
                 String::class.java,
                 String::class.java,
                 String::class.java
             )
 
-            XposedBridge.hookMethod(getIdentifier, object: XC_MethodHook() {
+            XposedBridge.hookMethod(getIdentifier, object : XC_MethodHook() {
                 override fun beforeHookedMethod(mhparam: MethodHookParam) = with(mhparam) {
                     if (args[2] == param.packageName) args[2] = "com.discord"
                 }
