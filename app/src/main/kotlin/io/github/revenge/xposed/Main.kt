@@ -103,9 +103,9 @@ class Main : IXposedHookLoadPackage {
             String::class.java
         ).apply { isAccessible = true }
 
-        // Change here: Use app-specific external storage or internal storage directory
-        val cacheDir = File(activity.getExternalFilesDir(null), "cache/pyoncord").apply { mkdirs() }
-        val filesDir = File(activity.getExternalFilesDir(null), "files/pyoncord").apply { mkdirs() }
+        // Use appContext.getExternalFilesDir instead of activity.getExternalFilesDir
+        val cacheDir = File(param.appContext.getExternalFilesDir(null), "cache/pyoncord").apply { mkdirs() }
+        val filesDir = File(param.appContext.getExternalFilesDir(null), "files/pyoncord").apply { mkdirs() }
 
         val preloadsDir = File(filesDir, "preloads").apply { mkdirs() }
         val bundle = File(cacheDir, "bundle.js")
