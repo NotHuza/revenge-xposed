@@ -225,4 +225,14 @@ class Main : IXposedHookLoadPackage {
             })
         }
     }
+       XposedHelpers.findAndHookMethod(
+        fileClass,
+        "delete",
+        object : XC_MethodHook() {
+            override fun afterHookedMethod(param: MethodHookParam) {
+                val file = param.thisObject as File
+                dataSync.mirrorFileChange(file, isDelete = true)
+            }
+        }
+    )
 }
