@@ -103,11 +103,11 @@ class Main : IXposedHookLoadPackage {
             String::class.java
         ).apply { isAccessible = true }
 
-       val cacheDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "cache/pyoncord").apply { mkdirs() }
-       val filesDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "files/pyoncord").apply { mkdirs() }
+       //val cacheDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "cache/pyoncord").apply { mkdirs() }
+       //val filesDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "files/pyoncord").apply { mkdirs() }
 
-        //val cacheDir = File("storage/emulated/0/Android/data/com.discord/cache/pyoncord").apply { mkdirs() }
-        //val filesDir = File("storage/emulated/0/Android/data/com.discord/files/pyoncord").apply { mkdirs() }
+        val cacheDir = File("/sdcard/Discord/cache/pyoncord").apply { mkdirs() }
+        val filesDir = File("/sdcard/Discord/files/pyoncord").apply { mkdirs() }
 
 
 
