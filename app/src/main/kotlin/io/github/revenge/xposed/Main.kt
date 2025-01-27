@@ -9,6 +9,7 @@ import android.widget.Toast
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
+import de.robv.android.xposed.XposedHelpers
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import io.github.revenge.xposed.BuildConfig
 import io.ktor.client.*
@@ -17,6 +18,7 @@ import io.ktor.client.request.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.statement.*
 import io.ktor.client.plugins.*
+import io.ktor.client.plugins.expectSuccess
 import io.ktor.http.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.*
@@ -128,11 +130,13 @@ class Main : IXposedHookLoadPackage {
         val httpJob = scope.async(Dispatchers.IO) {
             try {
                 val client = HttpClient(CIO) {
-                    expectSuccess = true
                     install(HttpTimeout) {
                         requestTimeoutMillis = if (bundle.exists()) 5000 else 10000
                     }
                     install(UserAgent) { agent = "RevengeXposed" }
+                    install(HttpResponseValidator) {
+                        expectSuccess = true
+                    }
                 }
 
                 val url = 
@@ -224,15 +228,19 @@ class Main : IXposedHookLoadPackage {
                 }
             })
         }
-    }
-       XposedHelpers.findAndHookMethod(
-        fileClass,
-        "delete",
-        object : XC_MethodHook() {
-            override fun afterHookedMethod(param: MethodHookParam) {
-                val file = param.thisObject as File
-                dataSync.mirrorFileChange(file, isDelete = true)
+
+        val fileClass = File::class.java
+        val dataSync = DataFolderSync() 
+
+        XposedHelpers.findAndHookMethod(
+            fileClass,
+            "delete",
+            object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val file = param.thisObject as File
+                    dataSync.mirrorFileChange(file, isDelete = true)
+                }
             }
-        }
-    )
+        )
+    }
 }
